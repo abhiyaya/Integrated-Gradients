@@ -2,7 +2,7 @@ import plotly.express as px
 import numpy as np
 import pandas as pd
 
-def plot_feature_importance(IG_recurrent, feature_names, title="Integrated Gradients Attribution"):
+def plot_feature_importance(IG_recurrent, feature_names, title="Integrated Gradients Attribution",save_path=None):
     # Average the Integrated Gradients over time steps (days)
     avg_IG = np.mean(IG_recurrent, axis=0)
     
@@ -19,6 +19,9 @@ def plot_feature_importance(IG_recurrent, feature_names, title="Integrated Gradi
         width=800,
         height=600
     )
+    if save_path:
+        fig.write_html(save_path)
+        print(f"Figure saved to {save_path}")
     
     # Show the plot
     fig.show()
