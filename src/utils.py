@@ -1,25 +1,13 @@
-import plotly.express as px
+import matplotlib.pyplot as plt
+import seaborn as sns
 import numpy as np
-import pandas as pd
 
 def plot_feature_importance(IG_recurrent, feature_names, title="Integrated Gradients Attribution"):
-    # Average the Integrated Gradients over time steps (days)
-    avg_IG = np.mean(IG_recurrent, axis=0)
-    
-    # Create a DataFrame for Plotly (for better handling of labels)
-    df = pd.DataFrame(avg_IG, columns=feature_names)
-    
-    # Create a heatmap using Plotly
-    fig = px.imshow(df.T, labels={'x': 'Features', 'y': 'Time Steps (Days)'}, color_continuous_scale="RdBu", title=title)
-    
-    # Adjust layout for better readability
-    fig.update_layout(
-        xaxis_title="Time Steps (Days)",
-        yaxis_title="Features",
-        width=800,
-        height=600
-    )
-    
-    # Show the plot
-    fig.show()
-
+    plt.figure(figsize=(10, 6))
+    sns.heatmap(np.mean(IG_recurrent, axis=0), cmap="coolwarm", center=0, annot=False)
+    plt.xlabel("Features")
+    plt.ylabel("Time Steps (Days)")
+    plt.title(title)
+    plt.xticks(ticks=np.arange(len(feature_names)), labels=feature_names)
+    plt.xticks(rotation=45, ha='right')
+    plt.show()
