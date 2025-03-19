@@ -1,42 +1,53 @@
 import tensorflow as tf
 import numpy as np
 
-def integrated_gradients(model, X_test, X_static_test, baseline=None, steps=50):
+def integrated_gradients(model, X_test, baseline_recurrent=None, steps=50):
     """
-    Compute Integrated Gradients for LSTM model.
+    Compute Integrated Gradients for the given model and inputs.
 
     Args:
         model: Trained TensorFlow model.
-        X_test: Recurrent input (batch_size, time_steps, features).
-        X_static_test: Static input (batch_size, static_features).
-        baseline: Reference baseline input (default is zero array).
-        steps: Number of steps for interpolation.
+        X_test: Test recurrent input (shape: batch_size, time_steps, features).
+        baseline_recurrent: Baseline input for recurrent features (default: all zeros).
+        baseline_static: Baseline input for static features (default: all zeros).
+        steps: Number of steps to approximate the integral.
 
     Returns:
-        IG_recurrent: Integrated gradients for recurrent features.
-        IG_static: Integrated gradients for static features.
+        IG for recurrent and static features.
     """
+    if baseline_recurrent is None:
+        baseline_recurrent = np.zeros_like(X_test)
 
-    if baseline is None:
-        baseline = np.zeros_like(X_test)
 
-    interpolated_recurrent = np.linspace(baseline, X_test, num=steps)
-    interpolated_static = np.linspace(np.zeros_like(X_static_test), X_static_test, num=steps)
+    alphas = np.linspace(0, 1, steps + 1)  # Shape: (steps+1,)
 
-    interpolated_recurrent_tf = tf.convert_to_tensor(interpolated_recurrent, dtype=tf.float32)
-    interpolated_static_tf = tf.convert_to_tensor(interpolated_static, dtype=tf.float32)
+    gradients_recurrent = []
 
-    with tf.GradientTape(persistent=True) as tape:
-        tape.watch(interpolated_recurrent_tf)
-        tape.watch(interpolated_static_tf)
+    for alpha in alphas:
+        interpolated_recurrent = baseline_recurrent + alpha * (X_test - baseline_recurrent)
 
-        predictions = model((interpolated_recurrent_tf, interpolated_static_tf), training=False)
-        target_output = tf.reduce_sum(predictions, axis=1)
+        # Convert to TensorFlow Variables
+        interpolated_recurrent_tf = tf.Variable(interpolated_recurrent, dtype=tf.float32)
 
-    gradients_recurrent = tape.gradient(target_output, interpolated_recurrent_tf)
-    gradients_static = tape.gradient(target_output, interpolated_static_tf)
+        with tf.GradientTape(persistent=True) as tape:  # Set persistent=True to allow multiple gradient calculations
+            tape.watch(interpolated_recurrent_tf)
 
-    IG_recurrent = np.mean(gradients_recurrent.numpy(), axis=0) * (X_test - baseline)
-    IG_static = np.mean(gradients_static.numpy(), axis=0) * X_static_test
+            # Model predictions for this interpolated input
+            predictions = model((interpolated_recurrent_tf), training=False)
+            annual_revenue = tf.reduce_sum(predictions, axis=1)  # Sum over months
 
-    return IG_recurrent, IG_static
+        # Compute gradients for this step
+        grad_recurrent = tape.gradient(annual_revenue, interpolated_recurrent_tf)
+
+        gradients_recurrent.append(grad_recurrent.numpy())
+
+    # Convert gradients list to numpy arrays
+    gradients_recurrent = np.array(gradients_recurrent)  # Shape: (steps+1, batch, time, features)
+
+    # Average gradients across steps to approximate integral
+    avg_grad_recurrent = np.mean(gradients_recurrent, axis=0)
+
+    # Compute IG: (input - baseline) * average gradient
+    IG_recurrent = (X_test - baseline_recurrent) * avg_grad_recurrent
+
+    return IG_recurrent

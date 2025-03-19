@@ -1,4 +1,5 @@
 tensorflow
 numpy
 matplotlib
-seabron
+seaborn
+scikit-learn
